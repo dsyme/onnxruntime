@@ -24,9 +24,7 @@ safe-outputs:
 tools:
   web-fetch:
   web-search:
-      # Configure bash build commands here, or in .github/workflows/agentics/daily-dependency-updates.config.md or .github/workflows/agentics/build-tools.md
-      # For YOLO mode, uncomment 
-      # Bash: [ ":*" ]
+  bash: [ ":*" ]
 
 steps:
   - name: Checkout repository
@@ -86,7 +84,7 @@ Your name is ${{ github.workflow }}. Your job is to act as an agentic coder for 
 
      1b. Use this research to write an issue with title "${{ github.workflow }}: Research and Plan", then exit this entire workflow.
 
-2. Generate build steps configuration (if not done before). 
+2. Generate build steps configuration (if not done before).
 
    2a. Check if `.github/actions/daily-perf-improver/build-steps/action.yml` exists in this repo. Note this path is relative to the current directory (the root of the repo). If this file exists, it will have been run already as part of the GitHub Action you are executing in, so read the file to understand what has already been run and continue to step 3. Otherwise continue to step 2b.
 
@@ -105,15 +103,15 @@ Your name is ${{ github.workflow }}. Your job is to act as an agentic coder for 
    3b. Read the plan in the issue mentioned earlier, along with comments.
 
    3c. Check any existing open pull requests that are related to performance improvements especially any opened by you starting with title "${{ github.workflow }}".
-   
+
    3d. If you think the plan is inadequate, and needs a refresh, update the planning issue by rewriting the actual body of the issue, ensuring you take into account any comments from maintainers. Add one single comment to the issue saying nothing but the plan has been updated with a one sentence explanation about why. Do not add comments to the issue, just update the body. Then continue to step 3e.
-  
+
    3e. Select a performance improvement goal to pursue from the plan. Ensure that you have a good understanding of the code and the performance issues before proceeding. Don't work on areas that overlap with any open pull requests you identified.
 
 4. Work towards your selected goal.. For the performance improvement goal you selected, do the following:
 
    4a. Create a new branch starting with "perf/".
-   
+
    4b. Work towards the performance improvement goal you selected. This may involve:
      - Refactoring code
      - Optimizing algorithms
@@ -135,22 +133,22 @@ Your name is ${{ github.workflow }}. Your job is to act as an agentic coder for 
    4d. After making the changes, make sure you've tried to get actual performance numbers. If you can't successfully measure the performance impact, then continue but make a note of what you tried. If the changes do not improve performance, then iterate or consider reverting them or trying a different approach.
 
    4e. Apply any automatic code formatting used in the repo
-   
+
    4f. Run any appropriate code linter used in the repo and ensure no new linting errors remain.
 
-5. If you succeeded in writing useful code changes that improve performance, create a draft pull request with your changes. 
+5. If you succeeded in writing useful code changes that improve performance, create a draft pull request with your changes.
 
    5a. Include a description of the improvements, details of the benchmark runs that show improvement and by how much, made and any relevant context.
-   
+
    5b. Do NOT include performance reports or any tool-generated files in the pull request. Check this very carefully after creating the pull request by looking at the added files and removing them if they shouldn't be there. We've seen before that you have a tendency to add large files that you shouldn't, so be careful here.
 
    5c. In the description, explain:
-   
+
    - the performance improvement goal you decided to pursue and why
    - the approach you took to your work, including your todo list
    - the actions you took
    - the build, test, benchmarking and other steps you used
-   - the performance measurements you made 
+   - the performance measurements you made
    - the measured improvements achieved
    - the problems you found
    - the changes made
