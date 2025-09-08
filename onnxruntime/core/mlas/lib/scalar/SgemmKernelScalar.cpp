@@ -121,8 +121,80 @@ Return Value:
         const float* b = B;
         size_t k = CountK;
 
-        while (k >= 2) {
+        // Improved loop unrolling for better performance
+        // Process 4 K values at a time when possible
+        while (k >= 4) {
+            // Prefetch next iteration of A and B data
+            #if defined(__GNUC__)
+            __builtin_prefetch(a + 4, 0, 1);
+            __builtin_prefetch(b + 64, 0, 1);
+            #endif
 
+            // Load A values for 4 iterations
+            Row0AElements0 = a[0];
+            Row0AElements1 = a[1];
+            const float Row0AElements2 = a[2];
+            const float Row0AElements3 = a[3];
+
+            if (ProcessTwoRows) {
+                Row1AElements0 = a[lda];
+                Row1AElements1 = a[lda + 1];
+                const float Row1AElements2 = a[lda + 2];
+                const float Row1AElements3 = a[lda + 3];
+                
+                // First iteration
+                BElements00 = b[0]; BElements01 = b[1]; BElements02 = b[2]; BElements03 = b[3];
+                Row0Block00 += BElements00 * Row0AElements0; Row0Block01 += BElements01 * Row0AElements0;
+                Row0Block02 += BElements02 * Row0AElements0; Row0Block03 += BElements03 * Row0AElements0;
+                Row1Block00 += BElements00 * Row1AElements0; Row1Block01 += BElements01 * Row1AElements0;
+                Row1Block02 += BElements02 * Row1AElements0; Row1Block03 += BElements03 * Row1AElements0;
+
+                // Second iteration
+                BElements00 = b[16]; BElements01 = b[17]; BElements02 = b[18]; BElements03 = b[19];
+                Row0Block00 += BElements00 * Row0AElements1; Row0Block01 += BElements01 * Row0AElements1;
+                Row0Block02 += BElements02 * Row0AElements1; Row0Block03 += BElements03 * Row0AElements1;
+                Row1Block00 += BElements00 * Row1AElements1; Row1Block01 += BElements01 * Row1AElements1;
+                Row1Block02 += BElements02 * Row1AElements1; Row1Block03 += BElements03 * Row1AElements1;
+
+                // Third iteration
+                BElements00 = b[32]; BElements01 = b[33]; BElements02 = b[34]; BElements03 = b[35];
+                Row0Block00 += BElements00 * Row0AElements2; Row0Block01 += BElements01 * Row0AElements2;
+                Row0Block02 += BElements02 * Row0AElements2; Row0Block03 += BElements03 * Row0AElements2;
+                Row1Block00 += BElements00 * Row1AElements2; Row1Block01 += BElements01 * Row1AElements2;
+                Row1Block02 += BElements02 * Row1AElements2; Row1Block03 += BElements03 * Row1AElements2;
+
+                // Fourth iteration
+                BElements00 = b[48]; BElements01 = b[49]; BElements02 = b[50]; BElements03 = b[51];
+                Row0Block00 += BElements00 * Row0AElements3; Row0Block01 += BElements01 * Row0AElements3;
+                Row0Block02 += BElements02 * Row0AElements3; Row0Block03 += BElements03 * Row0AElements3;
+                Row1Block00 += BElements00 * Row1AElements3; Row1Block01 += BElements01 * Row1AElements3;
+                Row1Block02 += BElements02 * Row1AElements3; Row1Block03 += BElements03 * Row1AElements3;
+            } else {
+                // Single row version - same 4-way unrolling
+                BElements00 = b[0]; BElements01 = b[1]; BElements02 = b[2]; BElements03 = b[3];
+                Row0Block00 += BElements00 * Row0AElements0; Row0Block01 += BElements01 * Row0AElements0;
+                Row0Block02 += BElements02 * Row0AElements0; Row0Block03 += BElements03 * Row0AElements0;
+
+                BElements00 = b[16]; BElements01 = b[17]; BElements02 = b[18]; BElements03 = b[19];
+                Row0Block00 += BElements00 * Row0AElements1; Row0Block01 += BElements01 * Row0AElements1;
+                Row0Block02 += BElements02 * Row0AElements1; Row0Block03 += BElements03 * Row0AElements1;
+
+                BElements00 = b[32]; BElements01 = b[33]; BElements02 = b[34]; BElements03 = b[35];
+                Row0Block00 += BElements00 * Row0AElements2; Row0Block01 += BElements01 * Row0AElements2;
+                Row0Block02 += BElements02 * Row0AElements2; Row0Block03 += BElements03 * Row0AElements2;
+
+                BElements00 = b[48]; BElements01 = b[49]; BElements02 = b[50]; BElements03 = b[51];
+                Row0Block00 += BElements00 * Row0AElements3; Row0Block01 += BElements01 * Row0AElements3;
+                Row0Block02 += BElements02 * Row0AElements3; Row0Block03 += BElements03 * Row0AElements3;
+            }
+
+            a += 4;
+            b += 64;
+            k -= 4;
+        }
+
+        // Handle remaining 2-element blocks
+        while (k >= 2) {
             Row0AElements0 = a[0];
             Row0AElements1 = a[1];
 
@@ -135,32 +207,32 @@ Return Value:
             BElements01 = b[1];
             BElements02 = b[2];
             BElements03 = b[3];
-            Row0Block00 = Row0Block00 + BElements00 * Row0AElements0;
-            Row0Block01 = Row0Block01 + BElements01 * Row0AElements0;
-            Row0Block02 = Row0Block02 + BElements02 * Row0AElements0;
-            Row0Block03 = Row0Block03 + BElements03 * Row0AElements0;
+            Row0Block00 += BElements00 * Row0AElements0;
+            Row0Block01 += BElements01 * Row0AElements0;
+            Row0Block02 += BElements02 * Row0AElements0;
+            Row0Block03 += BElements03 * Row0AElements0;
 
             if (ProcessTwoRows) {
-                Row1Block00 = Row1Block00 + BElements00 * Row1AElements0;
-                Row1Block01 = Row1Block01 + BElements01 * Row1AElements0;
-                Row1Block02 = Row1Block02 + BElements02 * Row1AElements0;
-                Row1Block03 = Row1Block03 + BElements03 * Row1AElements0;
+                Row1Block00 += BElements00 * Row1AElements0;
+                Row1Block01 += BElements01 * Row1AElements0;
+                Row1Block02 += BElements02 * Row1AElements0;
+                Row1Block03 += BElements03 * Row1AElements0;
             }
 
             BElements00 = b[16];
             BElements01 = b[17];
             BElements02 = b[18];
             BElements03 = b[19];
-            Row0Block00 = Row0Block00 + BElements00 * Row0AElements1;
-            Row0Block01 = Row0Block01 + BElements01 * Row0AElements1;
-            Row0Block02 = Row0Block02 + BElements02 * Row0AElements1;
-            Row0Block03 = Row0Block03 + BElements03 * Row0AElements1;
+            Row0Block00 += BElements00 * Row0AElements1;
+            Row0Block01 += BElements01 * Row0AElements1;
+            Row0Block02 += BElements02 * Row0AElements1;
+            Row0Block03 += BElements03 * Row0AElements1;
 
             if (ProcessTwoRows) {
-                Row1Block00 = Row1Block00 + BElements00 * Row1AElements1;
-                Row1Block01 = Row1Block01 + BElements01 * Row1AElements1;
-                Row1Block02 = Row1Block02 + BElements02 * Row1AElements1;
-                Row1Block03 = Row1Block03 + BElements03 * Row1AElements1;
+                Row1Block00 += BElements00 * Row1AElements1;
+                Row1Block01 += BElements01 * Row1AElements1;
+                Row1Block02 += BElements02 * Row1AElements1;
+                Row1Block03 += BElements03 * Row1AElements1;
             }
 
             a += 2;
@@ -180,16 +252,16 @@ Return Value:
             BElements01 = b[1];
             BElements02 = b[2];
             BElements03 = b[3];
-            Row0Block00 = Row0Block00 + BElements00 * Row0AElements0;
-            Row0Block01 = Row0Block01 + BElements01 * Row0AElements0;
-            Row0Block02 = Row0Block02 + BElements02 * Row0AElements0;
-            Row0Block03 = Row0Block03 + BElements03 * Row0AElements0;
+            Row0Block00 += BElements00 * Row0AElements0;
+            Row0Block01 += BElements01 * Row0AElements0;
+            Row0Block02 += BElements02 * Row0AElements0;
+            Row0Block03 += BElements03 * Row0AElements0;
 
             if (ProcessTwoRows) {
-                Row1Block00 = Row1Block00 + BElements00 * Row1AElements0;
-                Row1Block01 = Row1Block01 + BElements01 * Row1AElements0;
-                Row1Block02 = Row1Block02 + BElements02 * Row1AElements0;
-                Row1Block03 = Row1Block03 + BElements03 * Row1AElements0;
+                Row1Block00 += BElements00 * Row1AElements0;
+                Row1Block01 += BElements01 * Row1AElements0;
+                Row1Block02 += BElements02 * Row1AElements0;
+                Row1Block03 += BElements03 * Row1AElements0;
             }
         }
 
