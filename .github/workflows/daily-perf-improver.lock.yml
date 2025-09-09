@@ -2,7 +2,7 @@
 # To update this file, edit the corresponding .md file and run:
 #   gh aw compile
 #
-# Effective stop-time: 2025-09-10 17:10:53
+# Effective stop-time: 2025-09-11 22:58:31
 
 name: "Daily Perf Improver"
 "on":
@@ -39,6 +39,11 @@ jobs:
         if: steps.check_build_steps_file.outputs.exists == 'true'
         name: Build the project ready for performance testing
         uses: ./.github/actions/daily-perf-improver/build-steps
+      - name: Configure Git credentials
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "${{ github.workflow }}"
+          echo "Git configured with standard GitHub Actions identity"
       - name: Setup agent output
         id: setup_agent_output
         uses: actions/github-script@v7
@@ -94,7 +99,7 @@ jobs:
           WORKFLOW_NAME="Daily Perf Improver"
           
           # Check stop-time limit
-          STOP_TIME="2025-09-10 17:10:53"
+          STOP_TIME="2025-09-11 22:58:31"
           echo "Checking stop-time limit: $STOP_TIME"
           
           # Convert stop time to epoch seconds
@@ -353,6 +358,8 @@ jobs:
           echo '``````markdown' >> $GITHUB_STEP_SUMMARY
           cat $GITHUB_AW_PROMPT >> $GITHUB_STEP_SUMMARY
           echo '``````' >> $GITHUB_STEP_SUMMARY
+        env:
+          GITHUB_AW_PROMPT: /tmp/aw-prompts/prompt.txt
       - name: Generate agentic run info
         uses: actions/github-script@v7
         with:
@@ -479,12 +486,6 @@ jobs:
           
           # Ensure log file exists
           touch /tmp/daily-perf-improver.log
-      - name: Upload workflow-complete.txt
-        uses: actions/upload-artifact@v4
-        with:
-          name: workflow-complete
-          path: workflow-complete.txt
-          if-no-files-found: ignore
       - name: Collect agent output
         id: collect_output
         uses: actions/github-script@v7
@@ -737,11 +738,10 @@ jobs:
                     const repairedJson = repairJson(jsonStr);
                     return JSON.parse(repairedJson);
                   } catch (repairError) {
-                    // If repair also fails, print error to console and return undefined
-                    console.log(
-                      `JSON parsing failed. Original: ${originalError.message}. After repair: ${repairError.message}`
+                    // If repair also fails, throw the error
+                    throw new Error(
+                      `JSON parsing failed. Original: ${originalError.message}. After attempted repair: ${repairError.message}`
                     );
-                    return undefined;
                   }
                 }
               }
@@ -1152,6 +1152,10 @@ jobs:
               if (errors.length > 0) {
                 core.warning("Validation errors found:");
                 errors.forEach(error => core.warning(`  - ${error}`));
+                if (parsedItems.length === 0) {
+                  core.setFailed(errors.map(e => `  - ${e}`).join("\n"));
+                  return;
+                }
                 // For now, we'll continue with valid items but log the errors
                 // In the future, we might want to fail the workflow for invalid items
               }
@@ -1592,9 +1596,6 @@ jobs:
             INITIAL_SHA="$GITHUB_SHA"
           fi
           echo "Base commit SHA: $INITIAL_SHA"
-          # Configure git user for GitHub Actions
-          git config --global user.email "action@github.com"
-          git config --global user.name "GitHub Action"
           
           # If we have a branch name, check if that branch exists and get its diff
           if [ -n "$BRANCH_NAME" ]; then
@@ -1677,6 +1678,73 @@ jobs:
       issue_number: ${{ steps.create_issue.outputs.issue_number }}
       issue_url: ${{ steps.create_issue.outputs.issue_url }}
     steps:
+      - name: Check team membership for workflow
+        id: check-team-member
+        uses: actions/github-script@v7
+        env:
+          GITHUB_AW_REQUIRED_ROLES: admin,maintainer
+        with:
+          script: |
+            async function main() {
+              const { eventName } = context;
+              // skip check for safe events
+              const safeEvents = ["workflow_dispatch", "workflow_run", "schedule"];
+              if (safeEvents.includes(eventName)) {
+                console.log(`✅ Event ${eventName} does not require validation`);
+                return;
+              }
+              const actor = context.actor;
+              const { owner, repo } = context.repo;
+              const requiredPermissionsEnv = process.env.GITHUB_AW_REQUIRED_ROLES;
+              const requiredPermissions = requiredPermissionsEnv
+                ? requiredPermissionsEnv.split(",").filter(p => p.trim() !== "")
+                : [];
+              if (!requiredPermissions || requiredPermissions.length === 0) {
+                core.error(
+                  "❌ Configuration error: Required permissions not specified. Contact repository administrator."
+                );
+                process.exit(1);
+              }
+              // Check if the actor has the required repository permissions
+              try {
+                console.log(
+                  `Checking if user '${actor}' has required permissions for ${owner}/${repo}`
+                );
+                console.log(`Required permissions: ${requiredPermissions.join(", ")}`);
+                const repoPermission =
+                  await github.rest.repos.getCollaboratorPermissionLevel({
+                    owner: owner,
+                    repo: repo,
+                    username: actor,
+                  });
+                const permission = repoPermission.data.permission;
+                console.log(`Repository permission level: ${permission}`);
+                // Check if user has one of the required permission levels
+                for (const requiredPerm of requiredPermissions) {
+                  if (
+                    permission === requiredPerm ||
+                    (requiredPerm === "maintainer" && permission === "maintain")
+                  ) {
+                    console.log(`✅ User has ${permission} access to repository`);
+                    return;
+                  }
+                }
+                console.log(
+                  `User permission '${permission}' does not meet requirements: ${requiredPermissions.join(", ")}`
+                );
+              } catch (repoError) {
+                const errorMessage =
+                  repoError instanceof Error ? repoError.message : String(repoError);
+                core.error(`Repository permission check failed: ${errorMessage}`);
+                process.exit(1);
+              }
+              // Fail the job when permission check fails
+              core.warning(
+                `❌ Access denied: Only authorized users can trigger this workflow. User '${actor}' is not authorized. Required permissions: ${requiredPermissions.join(", ")}`
+              );
+              process.exit(78);
+            }
+            await main();
       - name: Create Output Issue
         id: create_issue
         uses: actions/github-script@v7
@@ -2047,6 +2115,11 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+      - name: Configure Git credentials
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "${{ github.workflow }}"
+          echo "Git configured with standard GitHub Actions identity"
       - name: Create Pull Request
         id: create_pull_request
         uses: actions/github-script@v7
@@ -2220,13 +2293,6 @@ jobs:
               console.log("Generated branch name:", branchName);
               console.log("Base branch:", baseBranch);
               // Create a new branch using git CLI
-              // Configure git (required for commits)
-              execSync('git config --global user.email "action@github.com"', {
-                stdio: "inherit",
-              });
-              execSync('git config --global user.name "GitHub Action"', {
-                stdio: "inherit",
-              });
               // Handle branch creation/checkout
               const branchFromJsonl = pullRequestItem.branch
                 ? pullRequestItem.branch.trim()
