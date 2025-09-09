@@ -1,0 +1,143 @@
+name: 'Build and Generate Coverage Report'
+description: 'Build ONNX Runtime and generate comprehensive test coverage report'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+      
+    - name: Install system dependencies
+      shell: bash
+      run: |
+        echo "Installing system dependencies..." >> coverage-steps.log
+        sudo apt-get update
+        sudo apt-get install -y lcov build-essential cmake ninja-build
+        echo "System dependencies installed" >> coverage-steps.log
+      
+    - name: Install Python dependencies
+      shell: bash
+      run: |
+        echo "Installing Python dependencies..." >> coverage-steps.log
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+        echo "Python dependencies installed" >> coverage-steps.log
+        
+    - name: Build ONNX Runtime with Coverage
+      shell: bash
+      run: |
+        echo "Building ONNX Runtime with coverage instrumentation..." >> coverage-steps.log
+        # Build with coverage flags for C++ and enable Python bindings
+        python3 tools/ci_build/build.py \
+          --build_dir build/Coverage \
+          --config RelWithDebInfo \
+          --enable_pybind \
+          --build_shared_lib \
+          --parallel \
+          --compile_no_warning_as_error \
+          --skip_submodule_sync \
+          --build \
+          --cmake_extra_defines \
+            CMAKE_CXX_FLAGS="--coverage -fprofile-arcs -ftest-coverage" \
+            CMAKE_C_FLAGS="--coverage -fprofile-arcs -ftest-coverage" \
+            CMAKE_EXE_LINKER_FLAGS="--coverage" \
+          2>&1 | tee -a coverage-steps.log
+        echo "Build completed" >> coverage-steps.log
+    
+    - name: Install Python package in development mode
+      shell: bash
+      run: |
+        echo "Installing ONNX Runtime Python package in development mode..." >> coverage-steps.log
+        export PYTHONPATH=$PWD/build/Coverage/RelWithDebInfo:$PYTHONPATH
+        pip install -e . 2>&1 | tee -a coverage-steps.log
+        echo "Python package installed" >> coverage-steps.log
+        
+    - name: Run C++ unit tests
+      shell: bash
+      run: |
+        echo "Running C++ unit tests..." >> coverage-steps.log
+        cd build/Coverage/RelWithDebInfo
+        # Run tests with timeout and continue on failure to get coverage from passing tests
+        timeout 1800 ctest --parallel --output-on-failure --timeout 300 || true
+        cd ../../..
+        echo "C++ tests completed" >> coverage-steps.log
+        
+    - name: Run Python tests with coverage
+      shell: bash
+      run: |
+        echo "Running Python tests with coverage..." >> coverage-steps.log
+        export PYTHONPATH=$PWD/build/Coverage/RelWithDebInfo:$PYTHONPATH
+        # Test the installed package and specific test directories
+        python -m pytest \
+          onnxruntime/test/python/ \
+          --cov=onnxruntime \
+          --cov-report=xml:python-coverage.xml \
+          --cov-report=html:python-coverage-html \
+          --timeout=300 \
+          --tb=short \
+          -x || true
+        echo "Python tests with coverage completed" >> coverage-steps.log
+        
+    - name: Generate C++ coverage report
+      shell: bash
+      run: |
+        echo "Generating C++ coverage report..." >> coverage-steps.log
+        # Capture coverage data from build directory
+        lcov --directory build/Coverage --capture --output-file cpp-coverage.info --ignore-errors gcov 2>&1 | tee -a coverage-steps.log || true
+        # Filter out system and external library files
+        lcov --remove cpp-coverage.info \
+          '/usr/*' \
+          '*/build/*' \
+          '*/cmake/*' \
+          '*/external/*' \
+          '*/third_party/*' \
+          '*_test.cc' \
+          '*_test.cpp' \
+          --output-file cpp-coverage-filtered.info 2>&1 | tee -a coverage-steps.log || true
+        # Generate HTML report
+        genhtml cpp-coverage-filtered.info --output-directory cpp-coverage-html --ignore-errors source 2>&1 | tee -a coverage-steps.log || true
+        echo "C++ coverage report generated" >> coverage-steps.log
+        
+    - name: Create combined coverage summary
+      shell: bash
+      run: |
+        echo "Creating combined coverage summary..." >> coverage-steps.log
+        echo "# ONNX Runtime Coverage Report Summary" > coverage-summary.md
+        echo "" >> coverage-summary.md
+        echo "## C++ Coverage" >> coverage-summary.md
+        if [ -f cpp-coverage-filtered.info ]; then
+          lcov --summary cpp-coverage-filtered.info >> coverage-summary.md 2>/dev/null || echo "C++ coverage data available but summary failed" >> coverage-summary.md
+        else
+          echo "C++ coverage data not available" >> coverage-summary.md
+        fi
+        echo "" >> coverage-summary.md
+        echo "## Python Coverage" >> coverage-summary.md
+        if [ -f python-coverage.xml ]; then
+          echo "Python coverage report generated (see python-coverage.xml and python-coverage-html/)" >> coverage-summary.md
+        else
+          echo "Python coverage data not available" >> coverage-summary.md
+        fi
+        echo "Coverage summary created" >> coverage-steps.log
+    
+    - name: Upload coverage artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage
+        path: |
+          cpp-coverage.info
+          cpp-coverage-filtered.info
+          cpp-coverage-html/
+          python-coverage.xml
+          python-coverage-html/
+          coverage-summary.md
+          coverage-steps.log
+        retention-days: 30
+      
+    - name: Final status
+      shell: bash
+      run: |
+        echo "Coverage generation workflow completed" >> coverage-steps.log
+        echo "Coverage artifacts uploaded successfully" >> coverage-steps.log
+        ls -la *coverage* >> coverage-steps.log 2>/dev/null || true
