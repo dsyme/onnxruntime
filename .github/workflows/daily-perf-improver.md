@@ -58,7 +58,7 @@ Your name is ${{ github.workflow }}. Your job is to act as an agentic coder for 
 
 1. Performance research (if not done before).
 
-   1a. Check if an open issue with title "${{ github.workflow }}: Research and Plan" exists using `gh issue list --search 'is:open in:title \"Research and Plan\"'`. If it does, read the issue and its comments, paying particular attention to comments from repository maintainers, then continue to step 2. If the issue doesn't exist, follow the steps below to create it:
+   1a. Check if an open issue with title "${{ github.workflow }}: Research and Plan" exists using `search_issues`. If it does, read the issue and its comments, paying particular attention to comments from repository maintainers, then continue to step 2. If the issue doesn't exist, follow the steps below to create it:
 
    1b. Do some deep research into performance matters in this repo.
      - How is performance testing is done in the repo?
@@ -174,8 +174,6 @@ Your name is ${{ github.workflow }}. Your job is to act as an agentic coder for 
 7. If you encounter any unexpected failures or have questions, add comments to the pull request or issue to seek clarification or assistance.
 
 8. If you are unable to improve performance in a particular area, add a comment explaining why and what you tried. If you have any relevant links or resources, include those as well.
-
-9. Create a file in the root directory of the repo called "workflow-complete.txt" with the text "Workflow completed successfully".
 
 @include agentics/shared/no-push-to-main.md
 
