@@ -44,29 +44,55 @@ void ComputeJob(
   T mean(0.0f);
   T mean_square(0.0f);
 
+  // Optimized: Fused loop for computing mean and variance in single pass
+  // Removed redundant copy to output as it gets overwritten anyway
   for (int64_t h = 0; h < norm_size; h++) {
-    p_output[h] = p_input[h];
-    mean += p_input[h];
-    mean_square += p_input[h] * p_input[h];
+    const T val = p_input[h];
+    mean += val;
+    mean_square += val * val;
   }
 
   mean = mean / norm_size;
+  T inv_std_dev;
   if (simplified) {
-    mean_square = sqrt(mean_square / norm_size + epsilon);
+    inv_std_dev = T(1.0) / sqrt(mean_square / norm_size + epsilon);
   } else {
-    mean_square = sqrt(mean_square / norm_size - mean * mean + epsilon);
+    inv_std_dev = T(1.0) / sqrt(mean_square / norm_size - mean * mean + epsilon);
   }
 
   // Compute the offset of gamma and beta to support broadcasting.
   int64_t i = LAYER_NORM_SCALE_BIAS_OFFSET(broadcast_param, task_idx, norm_size);
 
-  for (int64_t h = 0; h < norm_size; h++, i++) {
+  // Optimized: Vectorizable final normalization loop - better cache locality
+  // Process elements in blocks for better memory access patterns
+  constexpr int64_t BLOCK_SIZE = 4;
+  int64_t h = 0;
+  
+  // Process in blocks of 4 for better vectorization opportunities
+  for (; h < norm_size - BLOCK_SIZE + 1; h += BLOCK_SIZE) {
     if (simplified) {
-      p_output[h] = p_output[h] / mean_square * scale_data[i];
+      for (int64_t j = 0; j < BLOCK_SIZE; j++, i++) {
+        p_output[h + j] = p_input[h + j] * inv_std_dev * scale_data[i];
+      }
     } else if (nullptr == bias_data) {
-      p_output[h] = (p_output[h] - mean) / mean_square * scale_data[i];
+      for (int64_t j = 0; j < BLOCK_SIZE; j++, i++) {
+        p_output[h + j] = (p_input[h + j] - mean) * inv_std_dev * scale_data[i];
+      }
     } else {
-      p_output[h] = (p_output[h] - mean) / mean_square * scale_data[i] + bias_data[i];
+      for (int64_t j = 0; j < BLOCK_SIZE; j++, i++) {
+        p_output[h + j] = (p_input[h + j] - mean) * inv_std_dev * scale_data[i] + bias_data[i];
+      }
+    }
+  }
+  
+  // Handle remaining elements
+  for (; h < norm_size; h++, i++) {
+    if (simplified) {
+      p_output[h] = p_input[h] * inv_std_dev * scale_data[i];
+    } else if (nullptr == bias_data) {
+      p_output[h] = (p_input[h] - mean) * inv_std_dev * scale_data[i];
+    } else {
+      p_output[h] = (p_input[h] - mean) * inv_std_dev * scale_data[i] + bias_data[i];
     }
   }
 
@@ -76,7 +102,7 @@ void ComputeJob(
   }
 
   if (inv_std_dev_data != nullptr) {
-    inv_std_dev_data[task_idx] = gsl::narrow_cast<float>(1 / mean_square);
+    inv_std_dev_data[task_idx] = gsl::narrow_cast<float>(inv_std_dev);
   }
 }
 
