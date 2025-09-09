@@ -2,7 +2,7 @@
 # To update this file, edit the corresponding .md file and run:
 #   gh aw compile
 #
-# Effective stop-time: 2025-09-11 22:58:31
+# Effective stop-time: 2025-09-11 23:00:34
 
 name: "Daily Test Coverage Improver"
 "on":
@@ -99,7 +99,7 @@ jobs:
           WORKFLOW_NAME="Daily Test Coverage Improver"
           
           # Check stop-time limit
-          STOP_TIME="2025-09-11 22:58:31"
+          STOP_TIME="2025-09-11 23:00:34"
           echo "Checking stop-time limit: $STOP_TIME"
           
           # Convert stop time to epoch seconds
@@ -150,12 +150,12 @@ jobs:
                 - Opportunities for new ways of greatly increasing test coverage
                 - Any questions or clarifications needed from maintainers
           
-              1e. Continue to step 2.
+              1e. Continue to step 2. 
           
           2. Build steps inference and configuration (if not done before)
           
              2a. Check if `.github/actions/daily-test-improver/coverage-steps/action.yml` exists in this repo. Note this path is relative to the current directory (the root of the repo). If it exists then continue to step 3. If it doesn't then we need to create it:
-          
+             
              2b. Have a careful think about the CI commands needed to build the repository, run tests, produce a combined coverage report and upload it as an artifact. Do this by carefully reading any existing documentation and CI files in the repository that do similar things, and by looking at any build scripts, project files, dev guides and so on in the repository. If multiple projects are present, perform build and coverage testing on as many as possible, and where possible merge the coverage reports into one combined report. Work out the steps you worked out, in order, as a series of YAML steps suitable for inclusion in a GitHub Action.
           
              2c. Create the file `.github/actions/daily-test-improver/coverage-steps/action.yml` containing these steps, ensuring that the action.yml file is valid. Leave comments in the file to explain what the steps are doing, where the coverage report will be generated, and any other relevant information. Ensure that the steps include uploading the coverage report(s) as an artifact called "coverage".
@@ -163,7 +163,7 @@ jobs:
              2d. Before running any of the steps, make a pull request for the addition of the `action.yml` file, with title "Updates to complete configuration of ${{ github.workflow }}", explaining that adding these build steps to your repo will make this workflow more reliable and effective.
           
              2e. Try to run through the steps you worked out manually one by one. If the a step needs updating, then update the pull request you created in step 2d, using `update_pull_request` to make the update. Continue through all the steps. If you can't get it to work, then create an issue describing the problem and exit the entire workflow.
-          
+             
              2f. Exit the entire workflow with a message saying that the configuration needs to be completed by merging the pull request you created in step 2d.
           
           3. Decide what to work on
@@ -171,7 +171,7 @@ jobs:
              3a. You can assume that the repository is in a state where the steps in `.github/actions/daily-test-improver/coverage-steps/action.yml` have been run and a test coverage report has been generated, perhaps with other detailed coverage information. Look at the steps in `.github/actions/daily-test-improver/coverage-steps/action.yml` to work out where the coverage report should be, and find it. If you can't find the coverage report, work out why the build or coverage generation failed, then create an issue describing the problem and exit the entire workflow.
           
              3b. Read the coverge report. Be detailed, looking to understand the files, functions, branches, and lines of code that are not covered by tests. Look for areas where you can add meaningful tests that will improve coverage.
-          
+             
              3c. Check the most recent pull request with title starting with "${{ github.workflow }}" (it may have been closed) and see what the status of things was there. These are your notes from last time you did your work, and may include useful recommendations for future areas to work on.
           
              3d. Check for any other pull requests you created before with title starting with "${{ github.workflow }}". Don't work on adding any tests that overlap with what was done there.
@@ -181,17 +181,17 @@ jobs:
           4. Do the following:
           
              4a. Create a new branch
-          
+             
              4b. Write new tests to improve coverage. Ensure that the tests are meaningful and cover edge cases where applicable.
           
              4c. Build the tests if necessary and remove any build errors.
-          
+             
              4d. Run the new tests to ensure they pass.
           
              4e. Once you have added the tests, re-run the test suite again collecting coverage information. Check that overall coverage has improved. If coverage has not improved then exit.
           
              4f. Apply any automatic code formatting used in the repo
-          
+             
              4g. Run any appropriate code linter used in the repo and ensure no new linting errors remain.
           
              4h. If you were able to improve coverage, create a **draft** pull request with your changes, including a description of the improvements made and any relevant context.
@@ -210,7 +210,7 @@ jobs:
                 - In a collapsed section list
                   - all bash commands you ran
                   - all web searches you performed
-                  - all web pages you fetched
+                  - all web pages you fetched 
           
               - After creation, check the pull request to ensure it is correct, includes all expected files, and doesn't include any unwanted files or changes. Make any necessary corrections by pushing further commits to the branch.
           
@@ -268,13 +268,22 @@ jobs:
           
           ---
           
-          ## Creating an IssueCreating a Pull RequestUpdating Issues, Reporting Missing Tools or Functionality
+          ## Adding a Comment to an Issue or Pull Request, Creating an Issue, Creating a Pull Request, Updating Issues, Reporting Missing Tools or Functionality
           
           **IMPORTANT**: To do the actions mentioned in the header of this section, do NOT attempt to use MCP tools, do NOT attempt to use `gh`, do NOT attempt to use the GitHub API. You don't have write access to the GitHub repo. Instead write JSON objects to the file "${{ env.GITHUB_AW_SAFE_OUTPUTS }}". Each line should contain a single JSON object (JSONL format). You can write them one by one as you do them.
           
           **Format**: Write one JSON object per line. Each object must have a `type` field specifying the action type.
           
           ### Available Output Types:
+          
+          **Adding a Comment to an Issue or Pull Request**
+          
+          To add a comment to an issue or pull request:
+          1. Write an entry to "${{ env.GITHUB_AW_SAFE_OUTPUTS }}":
+          ```json
+          {"type": "add-issue-comment", "body": "Your comment content in markdown"}
+          ```
+          2. After you write to that file, read it as JSONL and check it is valid. If it isn't, make any necessary corrections to it to fix it up
           
           **Creating an Issue**
           
@@ -308,6 +317,7 @@ jobs:
           **Example JSONL file content:**
           ```
           {"type": "create-issue", "title": "Bug Report", "body": "Found an issue with..."}
+          {"type": "add-issue-comment", "body": "This is related to the issue above."}
           {"type": "create-pull-request", "title": "Fix typo", "body": "Corrected spelling mistake in documentation"}
           ```
           
@@ -458,7 +468,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           GITHUB_AW_SAFE_OUTPUTS: ${{ env.GITHUB_AW_SAFE_OUTPUTS }}
-          GITHUB_AW_SAFE_OUTPUTS_CONFIG: "{\"create-issue\":true,\"create-pull-request\":true,\"update-issue\":true}"
+          GITHUB_AW_SAFE_OUTPUTS_CONFIG: "{\"add-issue-comment\":{\"enabled\":true,\"target\":\"*\"},\"create-issue\":true,\"create-pull-request\":true,\"update-issue\":true}"
         with:
           script: |
             async function main() {
@@ -1874,6 +1884,189 @@ jobs:
                 await core.summary.addRaw(summaryContent).write();
               }
               console.log(`Successfully created ${createdIssues.length} issue(s)`);
+            }
+            await main();
+
+  create_issue_comment:
+    needs: daily-test-coverage-improver
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    timeout-minutes: 10
+    outputs:
+      comment_id: ${{ steps.create_comment.outputs.comment_id }}
+      comment_url: ${{ steps.create_comment.outputs.comment_url }}
+    steps:
+      - name: Add Issue Comment
+        id: create_comment
+        uses: actions/github-script@v7
+        env:
+          GITHUB_AW_AGENT_OUTPUT: ${{ needs.daily-test-coverage-improver.outputs.output }}
+          GITHUB_AW_COMMENT_TARGET: "*"
+        with:
+          script: |
+            async function main() {
+              // Read the validated output content from environment variable
+              const outputContent = process.env.GITHUB_AW_AGENT_OUTPUT;
+              if (!outputContent) {
+                console.log("No GITHUB_AW_AGENT_OUTPUT environment variable found");
+                return;
+              }
+              if (outputContent.trim() === "") {
+                console.log("Agent output content is empty");
+                return;
+              }
+              console.log("Agent output content length:", outputContent.length);
+              // Parse the validated output JSON
+              let validatedOutput;
+              try {
+                validatedOutput = JSON.parse(outputContent);
+              } catch (error) {
+                console.log(
+                  "Error parsing agent output JSON:",
+                  error instanceof Error ? error.message : String(error)
+                );
+                return;
+              }
+              if (!validatedOutput.items || !Array.isArray(validatedOutput.items)) {
+                console.log("No valid items found in agent output");
+                return;
+              }
+              // Find all add-issue-comment items
+              const commentItems = validatedOutput.items.filter(
+                /** @param {any} item */ item => item.type === "add-issue-comment"
+              );
+              if (commentItems.length === 0) {
+                console.log("No add-issue-comment items found in agent output");
+                return;
+              }
+              console.log(`Found ${commentItems.length} add-issue-comment item(s)`);
+              // Get the target configuration from environment variable
+              const commentTarget = process.env.GITHUB_AW_COMMENT_TARGET || "triggering";
+              console.log(`Comment target configuration: ${commentTarget}`);
+              // Check if we're in an issue or pull request context
+              const isIssueContext =
+                context.eventName === "issues" || context.eventName === "issue_comment";
+              const isPRContext =
+                context.eventName === "pull_request" ||
+                context.eventName === "pull_request_review" ||
+                context.eventName === "pull_request_review_comment";
+              // Validate context based on target configuration
+              if (commentTarget === "triggering" && !isIssueContext && !isPRContext) {
+                console.log(
+                  'Target is "triggering" but not running in issue or pull request context, skipping comment creation'
+                );
+                return;
+              }
+              const createdComments = [];
+              // Process each comment item
+              for (let i = 0; i < commentItems.length; i++) {
+                const commentItem = commentItems[i];
+                console.log(
+                  `Processing add-issue-comment item ${i + 1}/${commentItems.length}:`,
+                  { bodyLength: commentItem.body.length }
+                );
+                // Determine the issue/PR number and comment endpoint for this comment
+                let issueNumber;
+                let commentEndpoint;
+                if (commentTarget === "*") {
+                  // For target "*", we need an explicit issue number from the comment item
+                  if (commentItem.issue_number) {
+                    issueNumber = parseInt(commentItem.issue_number, 10);
+                    if (isNaN(issueNumber) || issueNumber <= 0) {
+                      console.log(
+                        `Invalid issue number specified: ${commentItem.issue_number}`
+                      );
+                      continue;
+                    }
+                    commentEndpoint = "issues";
+                  } else {
+                    console.log(
+                      'Target is "*" but no issue_number specified in comment item'
+                    );
+                    continue;
+                  }
+                } else if (commentTarget && commentTarget !== "triggering") {
+                  // Explicit issue number specified in target
+                  issueNumber = parseInt(commentTarget, 10);
+                  if (isNaN(issueNumber) || issueNumber <= 0) {
+                    console.log(
+                      `Invalid issue number in target configuration: ${commentTarget}`
+                    );
+                    continue;
+                  }
+                  commentEndpoint = "issues";
+                } else {
+                  // Default behavior: use triggering issue/PR
+                  if (isIssueContext) {
+                    if (context.payload.issue) {
+                      issueNumber = context.payload.issue.number;
+                      commentEndpoint = "issues";
+                    } else {
+                      console.log("Issue context detected but no issue found in payload");
+                      continue;
+                    }
+                  } else if (isPRContext) {
+                    if (context.payload.pull_request) {
+                      issueNumber = context.payload.pull_request.number;
+                      commentEndpoint = "issues"; // PR comments use the issues API endpoint
+                    } else {
+                      console.log(
+                        "Pull request context detected but no pull request found in payload"
+                      );
+                      continue;
+                    }
+                  }
+                }
+                if (!issueNumber) {
+                  console.log("Could not determine issue or pull request number");
+                  continue;
+                }
+                // Extract body from the JSON item
+                let body = commentItem.body.trim();
+                // Add AI disclaimer with run id, run htmlurl
+                const runId = context.runId;
+                const runUrl = context.payload.repository
+                  ? `${context.payload.repository.html_url}/actions/runs/${runId}`
+                  : `https://github.com/actions/runs/${runId}`;
+                body += `\n\n> Generated by Agentic Workflow [Run](${runUrl})\n`;
+                console.log(`Creating comment on ${commentEndpoint} #${issueNumber}`);
+                console.log("Comment content length:", body.length);
+                try {
+                  // Create the comment using GitHub API
+                  const { data: comment } = await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issueNumber,
+                    body: body,
+                  });
+                  console.log("Created comment #" + comment.id + ": " + comment.html_url);
+                  createdComments.push(comment);
+                  // Set output for the last created comment (for backward compatibility)
+                  if (i === commentItems.length - 1) {
+                    core.setOutput("comment_id", comment.id);
+                    core.setOutput("comment_url", comment.html_url);
+                  }
+                } catch (error) {
+                  core.error(
+                    `✗ Failed to create comment: ${error instanceof Error ? error.message : String(error)}`
+                  );
+                  throw error;
+                }
+              }
+              // Write summary for all created comments
+              if (createdComments.length > 0) {
+                let summaryContent = "\n\n## GitHub Comments\n";
+                for (const comment of createdComments) {
+                  summaryContent += `- Comment #${comment.id}: [View Comment](${comment.html_url})\n`;
+                }
+                await core.summary.addRaw(summaryContent).write();
+              }
+              console.log(`Successfully created ${createdComments.length} comment(s)`);
+              return createdComments;
             }
             await main();
 
