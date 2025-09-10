@@ -64,6 +64,8 @@ runs:
       shell: bash
       run: |
         echo "Starting ONNX Runtime build with coverage..." >> coverage-steps.log
+        echo "Build command: python3 tools/ci_build/build.py --build_dir build/Coverage --config RelWithDebInfo --build_shared_lib --enable_pybind --parallel --cmake_extra_defines CMAKE_CXX_FLAGS=\"--coverage -fprofile-arcs -ftest-coverage\" CMAKE_C_FLAGS=\"--coverage -fprofile-arcs -ftest-coverage\" CMAKE_EXE_LINKER_FLAGS=\"--coverage\" CMAKE_SHARED_LINKER_FLAGS=\"--coverage\"" >> coverage-steps.log
+        
         timeout 1800 python3 tools/ci_build/build.py \
           --build_dir build/Coverage \
           --config RelWithDebInfo \
@@ -74,7 +76,13 @@ runs:
             CMAKE_CXX_FLAGS="--coverage -fprofile-arcs -ftest-coverage" \
             CMAKE_C_FLAGS="--coverage -fprofile-arcs -ftest-coverage" \
             CMAKE_EXE_LINKER_FLAGS="--coverage" \
-            CMAKE_SHARED_LINKER_FLAGS="--coverage" || echo "Build completed with possible errors" >> coverage-steps.log
+            CMAKE_SHARED_LINKER_FLAGS="--coverage" 2>&1 | tee -a coverage-steps.log || echo "Build completed with possible errors" >> coverage-steps.log
+        
+        # Check build results
+        echo "Build artifacts:" >> coverage-steps.log
+        ls -la build/Coverage/RelWithDebInfo/ | head -20 >> coverage-steps.log
+        echo "Coverage files found:" >> coverage-steps.log
+        find build/Coverage -name "*.gcda" -o -name "*.gcno" | wc -l >> coverage-steps.log
         echo "ONNX Runtime build completed" >> coverage-steps.log
         
     # Install Python package in development mode
@@ -112,33 +120,50 @@ runs:
         fi
         echo "Python tests completed" >> coverage-steps.log
         
-    # Generate C++ coverage report with lcov
+    # Generate C++ coverage report with lcov (with error handling)
     - name: Generate C++ coverage report
       shell: bash
       run: |
         echo "Generating C++ coverage report..." >> coverage-steps.log
-        # Create base coverage info
-        lcov --directory build/Coverage --capture --initial --output-file coverage_base.info || echo "lcov base failed" >> coverage-steps.log
         
-        # Capture test coverage
-        lcov --directory build/Coverage --capture --output-file coverage_test.info || echo "lcov test capture failed" >> coverage-steps.log
+        # Create base coverage info (with ignore-errors flags for common issues)
+        lcov --ignore-errors mismatch,inconsistent --directory build/Coverage --capture --initial --output-file coverage_base.info 2>&1 | tee -a coverage-steps.log || echo "lcov base failed" >> coverage-steps.log
         
-        # Combine base and test coverage
-        lcov --add-tracefile coverage_base.info --add-tracefile coverage_test.info --output-file coverage_total.info || echo "lcov combine failed" >> coverage-steps.log
+        # Capture test coverage (with ignore-errors flags)
+        lcov --ignore-errors mismatch,inconsistent --directory build/Coverage --capture --output-file coverage_test.info 2>&1 | tee -a coverage-steps.log || echo "lcov test capture failed" >> coverage-steps.log
         
-        # Filter out system includes and test files
-        lcov --extract coverage_total.info \
-          "*/onnxruntime/core/*" \
-          "*/onnxruntime/providers/*" \
-          --output-file coverage_filtered.info || echo "lcov filter failed" >> coverage-steps.log
+        # Try gcovr as alternative if lcov fails completely
+        if [ ! -f coverage_test.info ] || [ ! -s coverage_test.info ]; then
+          echo "Trying gcovr as alternative..." >> coverage-steps.log
+          gcovr --root . --html --html-details --output cpp_coverage_html/index.html \
+            --filter "onnxruntime/core" --filter "onnxruntime/providers" \
+            --exclude ".*/test/.*" --exclude ".*/tests/.*" build/Coverage/ 2>&1 | tee -a coverage-steps.log || echo "gcovr html failed" >> coverage-steps.log
+          gcovr --root . --txt --output cpp_coverage_summary.txt \
+            --filter "onnxruntime/core" --filter "onnxruntime/providers" \
+            --exclude ".*/test/.*" --exclude ".*/tests/.*" build/Coverage/ 2>&1 | tee -a coverage-steps.log || echo "gcovr txt failed" >> coverage-steps.log
+        fi
+        
+        # Continue with lcov if files exist
+        if [ -f coverage_base.info ] && [ -f coverage_test.info ]; then
+          # Combine base and test coverage
+          lcov --add-tracefile coverage_base.info --add-tracefile coverage_test.info --output-file coverage_total.info 2>&1 | tee -a coverage-steps.log || echo "lcov combine failed" >> coverage-steps.log
           
-        # Generate HTML report
-        genhtml coverage_filtered.info --output-directory cpp_coverage_html || echo "genhtml failed" >> coverage-steps.log
+          # Filter out system includes and test files
+          lcov --extract coverage_total.info \
+            "*/onnxruntime/core/*" \
+            "*/onnxruntime/providers/*" \
+            --output-file coverage_filtered.info 2>&1 | tee -a coverage-steps.log || echo "lcov filter failed" >> coverage-steps.log
+            
+          # Generate HTML report if filtered info exists
+          if [ -f coverage_filtered.info ] && [ -s coverage_filtered.info ]; then
+            genhtml coverage_filtered.info --output-directory cpp_coverage_html --ignore-errors source 2>&1 | tee -a coverage-steps.log || echo "genhtml failed" >> coverage-steps.log
+            
+            # Generate text summary
+            lcov --summary coverage_filtered.info > cpp_coverage_summary.txt 2>&1 || echo "lcov summary failed" >> coverage-steps.log
+          fi
+        fi
         
-        # Generate text summary
-        lcov --summary coverage_filtered.info > cpp_coverage_summary.txt || echo "lcov summary failed" >> coverage-steps.log
-        
-        echo "C++ coverage report generated" >> coverage-steps.log
+        echo "C++ coverage report generation completed" >> coverage-steps.log
         
     # Generate combined coverage summary
     - name: Generate combined coverage summary
@@ -174,12 +199,14 @@ runs:
         name: coverage
         path: |
           coverage_summary.txt
-          coverage_filtered.info
+          coverage_*.info
           cpp_coverage_html/
+          cpp_coverage_summary.txt
           python_coverage.xml
           python_coverage_html/
           coverage-steps.log
         retention-days: 30
+        if-no-files-found: ignore
         
     # Display coverage summary in logs
     - name: Display coverage summary
