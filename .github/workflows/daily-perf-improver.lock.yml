@@ -2,7 +2,7 @@
 # To update this file, edit the corresponding .md file and run:
 #   gh aw compile
 #
-# Effective stop-time: 2025-09-12 00:00:29
+# Effective stop-time: 2025-09-12 14:32:11
 
 name: "Daily Perf Improver"
 "on":
@@ -100,7 +100,7 @@ jobs:
           WORKFLOW_NAME="Daily Perf Improver"
           
           # Check stop-time limit
-          STOP_TIME="2025-09-12 00:00:29"
+          STOP_TIME="2025-09-12 14:32:11"
           echo "Checking stop-time limit: $STOP_TIME"
           
           # Convert stop time to epoch seconds
@@ -2315,7 +2315,8 @@ jobs:
               // Apply the patch using git CLI (skip if empty)
               if (!isEmpty) {
                 console.log("Applying patch...");
-                execSync("git apply /tmp/aw.patch", { stdio: "inherit" });
+                // Patches are created with git format-patch, so use git am to apply them
+                execSync("git am /tmp/aw.patch", { stdio: "inherit" });
                 console.log("Patch applied successfully");
               } else {
                 console.log("Skipping patch application (empty patch)");

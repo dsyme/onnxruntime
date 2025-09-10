@@ -2,7 +2,7 @@
 # To update this file, edit the corresponding .md file and run:
 #   gh aw compile
 #
-# Effective stop-time: 2025-09-11 23:01:15
+# Effective stop-time: 2025-09-12 14:32:18
 
 name: "PR Fix"
 on:
@@ -573,7 +573,7 @@ jobs:
           WORKFLOW_NAME="PR Fix"
           
           # Check stop-time limit
-          STOP_TIME="2025-09-11 23:01:15"
+          STOP_TIME="2025-09-12 14:32:18"
           echo "Checking stop-time limit: $STOP_TIME"
           
           # Convert stop time to epoch seconds
@@ -2575,7 +2575,8 @@ jobs:
               if (!isEmpty) {
                 console.log("Applying patch...");
                 try {
-                  execSync("git apply /tmp/aw.patch", { stdio: "inherit" });
+                  // Patches are created with git format-patch, so use git am to apply them
+                  execSync("git am /tmp/aw.patch", { stdio: "inherit" });
                   console.log("Patch applied successfully");
                 } catch (error) {
                   core.error(
