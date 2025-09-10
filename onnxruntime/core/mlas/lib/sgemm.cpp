@@ -71,6 +71,14 @@ Return Value:
         float* c = C;
         size_t n = CountN;
 
+        // Improved loop unrolling - process 8 elements at a time when possible
+        while (n >= 8) {
+            MlasStoreFloat32x4(c, MlasMultiplyFloat32x4(MlasLoadFloat32x4(c), BetaBroadcast));
+            MlasStoreFloat32x4(c + 4, MlasMultiplyFloat32x4(MlasLoadFloat32x4(c + 4), BetaBroadcast));
+            c += 8;
+            n -= 8;
+        }
+
         while (n >= 4) {
             MlasStoreFloat32x4(c, MlasMultiplyFloat32x4(MlasLoadFloat32x4(c), BetaBroadcast));
             c += 4;
