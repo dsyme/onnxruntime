@@ -1,0 +1,196 @@
+name: 'ONNX Runtime Coverage Generation'
+description: 'Build ONNX Runtime with coverage instrumentation and generate comprehensive coverage reports'
+runs:
+  using: 'composite'
+  steps:
+    # Setup environment
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    # Log all steps to coverage-steps.log for debugging
+    - name: Initialize coverage log
+      shell: bash
+      run: |
+        echo "=== ONNX Runtime Coverage Generation Started at $(date) ===" >> coverage-steps.log
+        echo "Working directory: $(pwd)" >> coverage-steps.log
+        echo "Python version: $(python3 --version)" >> coverage-steps.log
+        echo "CMAKE version: $(cmake --version | head -1)" >> coverage-steps.log
+        
+    # Install system dependencies needed for coverage build
+    - name: Install system dependencies
+      shell: bash
+      run: |
+        echo "Installing system dependencies..." >> coverage-steps.log
+        sudo apt-get update || true
+        sudo apt-get install -y \
+          lcov \
+          gcovr \
+          build-essential \
+          cmake \
+          git \
+          python3-dev \
+          python3-pip \
+          libprotobuf-dev \
+          protobuf-compiler \
+          pkg-config || true
+        echo "System dependencies installed" >> coverage-steps.log
+        
+    # Install Python dependencies
+    - name: Install Python dependencies
+      shell: bash
+      run: |
+        echo "Installing Python dependencies..." >> coverage-steps.log
+        python3 -m pip install --upgrade pip
+        # Install requirements if they exist
+        if [ -f requirements-dev.txt ]; then
+          python3 -m pip install -r requirements-dev.txt
+        fi
+        # Install essential packages for testing and coverage
+        python3 -m pip install pytest pytest-cov numpy || true
+        echo "Python dependencies installed" >> coverage-steps.log
+        
+    # Update git submodules (required for ONNX Runtime build)
+    - name: Update git submodules
+      shell: bash
+      run: |
+        echo "Updating git submodules..." >> coverage-steps.log
+        git submodule update --init --recursive || echo "Submodule update failed, continuing..." >> coverage-steps.log
+        echo "Git submodules updated" >> coverage-steps.log
+        
+    # Build ONNX Runtime with coverage instrumentation
+    - name: Build ONNX Runtime with coverage
+      shell: bash
+      run: |
+        echo "Starting ONNX Runtime build with coverage..." >> coverage-steps.log
+        timeout 1800 python3 tools/ci_build/build.py \
+          --build_dir build/Coverage \
+          --config RelWithDebInfo \
+          --build_shared_lib \
+          --enable_pybind \
+          --parallel \
+          --cmake_extra_defines \
+            CMAKE_CXX_FLAGS="--coverage -fprofile-arcs -ftest-coverage" \
+            CMAKE_C_FLAGS="--coverage -fprofile-arcs -ftest-coverage" \
+            CMAKE_EXE_LINKER_FLAGS="--coverage" \
+            CMAKE_SHARED_LINKER_FLAGS="--coverage" || echo "Build completed with possible errors" >> coverage-steps.log
+        echo "ONNX Runtime build completed" >> coverage-steps.log
+        
+    # Install Python package in development mode
+    - name: Install ONNX Runtime Python package
+      shell: bash
+      run: |
+        echo "Installing ONNX Runtime Python package..." >> coverage-steps.log
+        pip install -e . || echo "Python package install failed, tests may not run" >> coverage-steps.log
+        echo "ONNX Runtime Python package installed" >> coverage-steps.log
+        
+    # Run C++ tests with CTest
+    - name: Run C++ tests
+      shell: bash  
+      run: |
+        echo "Running C++ tests..." >> coverage-steps.log
+        cd build/Coverage/RelWithDebInfo || (echo "Build directory not found" >> coverage-steps.log && exit 0)
+        # Run tests with timeout, but don't fail the action if tests fail
+        timeout 300 ctest --parallel --output-on-failure --timeout 60 || echo "Some C++ tests failed or timed out" >> coverage-steps.log
+        echo "C++ tests completed" >> coverage-steps.log
+        
+    # Run Python tests with coverage if available
+    - name: Run Python tests with coverage
+      shell: bash
+      run: |
+        echo "Running Python tests with coverage..." >> coverage-steps.log
+        if [ -d "onnxruntime/test/python" ]; then
+          python3 -m pytest onnxruntime/test/python/ \
+            --cov=onnxruntime \
+            --cov-report=xml:python_coverage.xml \
+            --cov-report=html:python_coverage_html \
+            --timeout=60 \
+            -x || echo "Some Python tests failed" >> coverage-steps.log
+        else
+          echo "No Python tests directory found" >> coverage-steps.log
+        fi
+        echo "Python tests completed" >> coverage-steps.log
+        
+    # Generate C++ coverage report with lcov
+    - name: Generate C++ coverage report
+      shell: bash
+      run: |
+        echo "Generating C++ coverage report..." >> coverage-steps.log
+        # Create base coverage info
+        lcov --directory build/Coverage --capture --initial --output-file coverage_base.info || echo "lcov base failed" >> coverage-steps.log
+        
+        # Capture test coverage
+        lcov --directory build/Coverage --capture --output-file coverage_test.info || echo "lcov test capture failed" >> coverage-steps.log
+        
+        # Combine base and test coverage
+        lcov --add-tracefile coverage_base.info --add-tracefile coverage_test.info --output-file coverage_total.info || echo "lcov combine failed" >> coverage-steps.log
+        
+        # Filter out system includes and test files
+        lcov --extract coverage_total.info \
+          "*/onnxruntime/core/*" \
+          "*/onnxruntime/providers/*" \
+          --output-file coverage_filtered.info || echo "lcov filter failed" >> coverage-steps.log
+          
+        # Generate HTML report
+        genhtml coverage_filtered.info --output-directory cpp_coverage_html || echo "genhtml failed" >> coverage-steps.log
+        
+        # Generate text summary
+        lcov --summary coverage_filtered.info > cpp_coverage_summary.txt || echo "lcov summary failed" >> coverage-steps.log
+        
+        echo "C++ coverage report generated" >> coverage-steps.log
+        
+    # Generate combined coverage summary
+    - name: Generate combined coverage summary
+      shell: bash
+      run: |
+        echo "Generating combined coverage summary..." >> coverage-steps.log
+        echo "=== ONNX Runtime Coverage Summary ===" > coverage_summary.txt
+        echo "" >> coverage_summary.txt
+        
+        # C++ coverage summary
+        if [ -f cpp_coverage_summary.txt ]; then
+          echo "=== C++ Coverage ===" >> coverage_summary.txt
+          cat cpp_coverage_summary.txt >> coverage_summary.txt
+          echo "" >> coverage_summary.txt
+        else
+          echo "C++ coverage data not available" >> coverage_summary.txt
+        fi
+        
+        # Python coverage summary 
+        if [ -f python_coverage.xml ]; then
+          echo "=== Python Coverage ===" >> coverage_summary.txt
+          echo "Python coverage report generated (see python_coverage.xml)" >> coverage_summary.txt
+        else
+          echo "Python coverage data not available" >> coverage_summary.txt
+        fi
+        
+        echo "Coverage summary generated" >> coverage-steps.log
+        
+    # Upload coverage artifacts
+    - name: Upload coverage artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage
+        path: |
+          coverage_summary.txt
+          coverage_filtered.info
+          cpp_coverage_html/
+          python_coverage.xml
+          python_coverage_html/
+          coverage-steps.log
+        retention-days: 30
+        
+    # Display coverage summary in logs
+    - name: Display coverage summary
+      shell: bash
+      run: |
+        echo "=== Final Coverage Summary ===" >> coverage-steps.log
+        if [ -f coverage_summary.txt ]; then
+          cat coverage_summary.txt
+          echo "" >> coverage-steps.log
+          cat coverage_summary.txt >> coverage-steps.log
+        else
+          echo "No coverage summary available" >> coverage-steps.log
+        fi
+        echo "Coverage generation workflow completed at $(date)" >> coverage-steps.log
