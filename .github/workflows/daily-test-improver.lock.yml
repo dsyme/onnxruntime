@@ -2,7 +2,7 @@
 # To update this file, edit the corresponding .md file and run:
 #   gh aw compile
 #
-# Effective stop-time: 2025-09-11 23:54:16
+# Effective stop-time: 2025-09-12 00:00:24
 
 name: "Daily Test Coverage Improver"
 "on":
@@ -35,9 +35,10 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
         shell: bash
-      - id: coverage-steps
+      - continue-on-error: true
+        id: coverage-steps
         if: steps.check_coverage_steps_file.outputs.exists == 'true'
-        name: Build the project and produce coverage report
+        name: Build the project and produce coverage report, logging to coverage-steps.log
         uses: ./.github/actions/daily-test-improver/coverage-steps
       - name: Configure Git credentials
         run: |
@@ -99,7 +100,7 @@ jobs:
           WORKFLOW_NAME="Daily Test Coverage Improver"
           
           # Check stop-time limit
-          STOP_TIME="2025-09-11 23:54:16"
+          STOP_TIME="2025-09-12 00:00:24"
           echo "Checking stop-time limit: $STOP_TIME"
           
           # Convert stop time to epoch seconds

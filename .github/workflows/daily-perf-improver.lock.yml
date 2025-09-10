@@ -2,7 +2,7 @@
 # To update this file, edit the corresponding .md file and run:
 #   gh aw compile
 #
-# Effective stop-time: 2025-09-11 23:54:11
+# Effective stop-time: 2025-09-12 00:00:29
 
 name: "Daily Perf Improver"
 "on":
@@ -35,9 +35,10 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
         shell: bash
-      - id: build-steps
+      - continue-on-error: true
+        id: build-steps
         if: steps.check_build_steps_file.outputs.exists == 'true'
-        name: Build the project ready for performance testing
+        name: Build the project ready for performance testing, logging to build-steps.log
         uses: ./.github/actions/daily-perf-improver/build-steps
       - name: Configure Git credentials
         run: |
@@ -99,7 +100,7 @@ jobs:
           WORKFLOW_NAME="Daily Perf Improver"
           
           # Check stop-time limit
-          STOP_TIME="2025-09-11 23:54:11"
+          STOP_TIME="2025-09-12 00:00:29"
           echo "Checking stop-time limit: $STOP_TIME"
           
           # Convert stop time to epoch seconds
